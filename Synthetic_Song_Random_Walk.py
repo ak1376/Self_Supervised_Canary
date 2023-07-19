@@ -16,6 +16,8 @@ import scipy.signal as signal
 import sounddevice as sd  
 from scipy.io.wavfile import write
 
+folderpath = '/Users/ananyakapoor/Dropbox (University of Oregon)/Kapoor_Ananya/01_Projects/01_b_Canary_SSL/Canary_SSL_Repo/'
+
 sampling_freq = 44100
 phi_0_arr = np.arange(0,2*np.pi, 0.8) # In radians
 delta_phi_arr = np.arange(-3*np.pi/2, 3*np.pi/2, 0.8) # In radians
@@ -118,10 +120,10 @@ num_repeats_list = num_repeats_arr_shuffled.tolist()
 #           1700]
 
 
-f_0 = 1500
+f_0 = 2000
 phi_0 = np.pi
 delta_phi = np.pi/6
-B = 300
+B = 1000
 c = 40
 Z1 = 0.88
 Z2 = 0.92
@@ -144,6 +146,7 @@ for syl in np.arange(num_syllables):
     for i in np.arange(num_repeats_list[syl]):
     
         if syl == 0 and i ==0 : # Initial condition (start of song)
+            f_0_list.append(f_0)
             B_list.append(B)
             phi_0_list.append(phi_0)
             delta_phi_list.append(delta_phi)
@@ -256,7 +259,7 @@ for syl in np.arange(num_syllables):
         # =============================================================================
         #     # Now let's calculate the harmonics 
         # =============================================================================
-        num_harmonics = 3
+        num_harmonics = 12
         theta_arr = np.zeros((num_harmonics, t.shape[0]))
         for k in np.arange(num_harmonics):
             # val = 2*np.pi*(k+1)*f.reshape(f.shape[0],)
@@ -334,8 +337,8 @@ for syl in np.arange(num_syllables):
         # =============================================================================
         #     # Enveloped signal 
         # =============================================================================
-        W_t = (0.42 + 0.5*np.cos(np.pi * t/T) + 0.08*np.cos(2*np.pi * t/T))
-        # W_t = 0.5 * (1 - np.cos(2 * np.pi * t / T))
+        # W_t = (0.42 + 0.5*np.cos(np.pi * t/T) + 0.08*np.cos(2*np.pi * t/T))
+        W_t = 0.5 * (1 - np.cos(2 * np.pi * t / T))
     
         waveform_filtered_envelope = y_arr * W_t
         
@@ -343,8 +346,11 @@ for syl in np.arange(num_syllables):
         
 
         
-            
-
+# Sample parameters
+window_duration_seconds = 0.02  # 40 ms window
+window_size = int(sampling_freq * window_duration_seconds)
+overlap_fraction = 0.9          # 90 percent overlap           
+overlap = int(window_size * overlap_fraction) 
 
 # =============================================================================
 # # Raw signal
@@ -355,6 +361,15 @@ for syl in np.arange(num_syllables):
 # frequencies, times, spectrogram = signal.spectrogram(total_signal_wave, fs=sampling_freq,
 #                                                     window='hamming', nperseg=256,
 #                                                     noverlap=128, nfft=512)
+
+# Compute the spectrogram
+# frequencies, times, spectrogram = signal.spectrogram(
+#     total_signal_wave,
+#     fs=sampling_freq,
+#     window='hamming',
+#     nperseg=int(window_duration_seconds * sampling_freq),
+#     noverlap=int(window_duration_seconds * sampling_freq * overlap_fraction)
+# )
 
 
 
@@ -392,12 +407,32 @@ for syl in np.arange(num_syllables):
 # =============================================================================
 # # Enveloped signal
 # =============================================================================
-frequencies, times, spectrogram = signal.spectrogram(total_envelope, fs=sampling_freq,
-                                                    window='hamming', nperseg=256,
-                                                    noverlap=128, nfft=512)
+
+# Perform running amplitude normalization
+normalized_signal = np.zeros_like(total_envelope)
+
+for i in range(0, len(total_envelope) - window_size + 1, window_size - overlap):
+    window = total_envelope[i:i + window_size]  # Extract a window of the signal
+    scaling_factor = 1.0 / np.max(np.abs(window))  # Calculate the scaling factor
+    normalized_signal[i:i + window_size] = window * scaling_factor  # Normalize the window
 
 
-# Plot the spectrogram
+# Compute the spectrogram
+frequencies, times, spectrogram = signal.spectrogram(
+    normalized_signal,
+    fs=sampling_freq,
+    window='bartlett',
+    nperseg=int(window_duration_seconds * sampling_freq),
+    noverlap=int(window_duration_seconds * sampling_freq * overlap_fraction)
+)
+
+
+# frequencies, times, spectrogram = signal.spectrogram(total_envelope, fs=sampling_freq,
+#                                                     window='hamming', nperseg=256,
+#                                                     noverlap=128, nfft=512)
+
+
+# # Plot the spectrogram
 plt.figure()
 plt.pcolormesh(times, frequencies, 10 * np.log10(spectrogram), shading='auto', cmap='inferno')
 plt.colorbar(label='Power Spectral Density (dB/Hz)')
@@ -407,7 +442,18 @@ plt.title("Enveloped and Filtered")
 plt.show()
 
 
-write('/Users/ananyakapoor/Desktop/enveloped_filtered_signal.wav', sampling_freq, total_envelope)
+# Save the following data
+# 1. The audio representation
+# 2. a structure containing the times, frequencies, and spectrogram data
+
+dat = {
+       's': spectrogram,
+       't': times, 
+       'f':frequencies
+       }
+
+np.savez(f'{folderpath}synthetic_data.npz', **dat)
+write(f'{folderpath}enveloped_filtered_signal.wav', sampling_freq, normalized_signal)
 
 
 
@@ -468,10 +514,55 @@ write('/Users/ananyakapoor/Desktop/enveloped_filtered_signal.wav', sampling_freq
 # plt.show()
 
 
+# import wave
+# import numpy as np
+# import matplotlib.pyplot as plt
+
+# wav_file = wave.open('smb://ion-nas.uoregon.edu/glab/Rose/sample_songs/USA5199_45108.62802931_7_1_17_26_42.wav')
+
+# # Get the audio file parameters
+# sample_width = wav_file.getsampwidth()
+# sample_rate = wav_file.getframerate()
+# num_frames = wav_file.getnframes()
+
+# # Read the audio data
+# audio_data = wav_file.readframes(num_frames)
+
+# # Convert the audio data to a numpy array
+# audio_array = np.frombuffer(audio_data, dtype=np.int16)
+
+# # Close the .wav file
+# wav_file.close()
+
+# # Generate the time axis
+# duration = num_frames / sample_rate
+# t_groundtruth = np.linspace(0, duration, num_frames)
+
+# # # Plot the waveform
+# # plt.figure()
+# # plt.plot(t_groundtruth, audio_array)
+# # plt.xlabel('Time (s)')
+# # plt.ylabel('Amplitude')
+# # plt.title('Ground Truth Waveform')
+# # plt.show()
+
+# from scipy import signal
+
+# frequencies, times, spectrogram = signal.spectrogram(audio_array, fs=sample_rate,
+#                                                     window='hamming', nperseg=256,
+#                                                     noverlap=128, nfft=512)
 
 
+# # spectrogram[frequencies>3000] = 10**(-30)
 
-
+# # Plot the spectrogram
+# plt.figure()
+# plt.pcolormesh(times, frequencies, 10 * np.log10(spectrogram), shading='auto', cmap='inferno')
+# plt.colorbar(label='Power Spectral Density (dB/Hz)')
+# plt.xlabel('Time (s)')
+# plt.ylabel('Frequency (Hz)')
+# plt.title("Spectrogram of Signal")
+# plt.show()
 
 
 
