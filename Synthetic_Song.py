@@ -54,9 +54,9 @@ total_envelope = np.array([])
 
 # We want to specify a library of syllables that can be rearranged in each song. 
 
-num_syllables = 2
-num_short = 1
-num_long = 1
+num_syllables = 10
+num_short = 5
+num_long = 5
 
 short_durations = np.random.uniform(20/1000, 70/1000, num_short)
 long_durations = np.random.uniform(100/1000, 200/1000, num_long)
@@ -126,25 +126,36 @@ averages == syllable_dict['num_repeats']
     #    random walk based on the syllable duration from the previous 
     #    occurrence of the SAME SYLLABLE PHRASE. 
 
-f_0 = 2000
-phi_0 = np.pi
-delta_phi = np.pi/6
-B = 1000
-c = 40
-Z1 = 0.88
-Z2 = 0.92
-theta_1 = np.pi/4
-theta_2 = np.pi/6
 
-f_0_list = []
-B_list = []
-phi_0_list =[]
-delta_phi_list = []
-c_list = []
-Z_1_list = []
-Z_2_list = []
-theta_1_list = []
-theta_2_list = []
+# Let's randomly choose a parameter set for the first occurrence of each unique
+# syllable phrase. 
+
+# f_0_values = np.array([2000, 950, 800])
+f_0_values = np.linspace(800, 3000, num_syllables)
+np.random.shuffle(f_0_values)
+B_values = np.linspace(0, 800, num_syllables)
+np.random.shuffle(B_values)
+# B_values = np.array([1000, 300, 400])
+phi_0_values = np.random.choice(phi_0_arr, (num_syllables))
+delta_phi_values = np.random.choice(delta_phi_arr, (num_syllables))
+c_values = np.random.choice(c_arr, (num_syllables))
+Z1_values = np.random.choice(Z_1_arr, (num_syllables))
+Z2_values = np.random.choice(Z_2_arr, (num_syllables))
+theta_1_values = np.random.choice(theta_1_arr, (num_syllables))
+theta_2_values = np.random.choice(theta_2_arr, (num_syllables))
+
+# Let's add these initial parameters to the dictionary we created earlier
+
+
+syllable_dict['initial_f_0'] = f_0_values
+syllable_dict['initial_B'] = B_values
+syllable_dict['initial_phi_0'] = phi_0_values
+syllable_dict['initial_delta_phi'] = delta_phi_values
+syllable_dict['initial_c'] = c_values
+syllable_dict['initial_Z_1'] = Z1_values
+syllable_dict['initial_Z_2'] = Z2_values
+syllable_dict['initial_theta_1'] = theta_1_values
+syllable_dict['initial_theta_2'] = theta_2_values
 
 # Define the number of inner lists (30 in this case)
 num_inner_lists = len(syllable_dict['syllable'])
@@ -163,35 +174,60 @@ theta_1_list = [[] * inner_list_size for _ in range(num_inner_lists)]
 theta_2_list = [[] * inner_list_size for _ in range(num_inner_lists)]
 T_values_list = [[] * inner_list_size for _ in range(num_inner_lists)]
 
+labels_per_sample = np.array([])
+labels_per_pixel = np.array([])
 low_frequency_check = 0
 high_frequency_check = 0
 initial_indicator = 1 
+
+# Sample parameters
+window_duration_seconds = 0.02  # 40 ms window
+window_size = int(sampling_freq * window_duration_seconds)
+overlap_fraction = 0.9       # 90 percent overlap           
+overlap = int(window_size * overlap_fraction) 
+
 for syl_index in np.arange(syllable_number.shape[0]):
     syl = syllable_number[syl_index]
     
-    if syl_index == 0 and initial_indicator == 1 : # Initial condition (start of song). Not resetting the random walk
+    if len(f_0_list[syl]) == 0: 
+        initial_indicator = 1
+    else:
+        initial_indicator = 0
+    
+    if initial_indicator == 1 : # Initial condition (start of song). Not resetting the random walk
         random_walk_indicator = 0
         T = syllable_dict['duration'][syl]
+        B = syllable_dict['initial_B'][syl]
+        f_0 = syllable_dict['initial_f_0'][syl]
+        phi_0 = syllable_dict['initial_phi_0'][syl]
+        delta_phi = syllable_dict['initial_delta_phi'][syl]
+        c = syllable_dict['initial_c'][syl]
+        Z1 = syllable_dict['initial_Z_1'][syl]
+        Z2 = syllable_dict['initial_Z_2'][syl]
+        theta_1 = syllable_dict['initial_theta_1'][syl]
+        theta_2 = syllable_dict['initial_theta_2'][syl]
         
     else:
         random_walk_indicator = 1
         
     if random_walk_indicator == 1:
-            
+        B = B_list[syl][-1]
+        f_0 = f_0_list[syl][-1]
+        phi_0 = phi_0_list[syl][-1]
+        delta_phi = delta_phi_list[syl][-1]
+        c = c_list[syl][-1]
+        Z1 = Z_1_list[syl][-1]
+        Z2 = Z_2_list[syl][-1]
+        theta_1 = theta_1_list[syl][-1]
+        theta_2 = theta_2_list[syl][-1] 
+        T = T_values_list[syl][-1]
+
         random_num = np.random.uniform(-1, 1)
         # B block
         if low_frequency_check == 1:
             B+=20
         elif high_frequency_check == 1:
             B-= 20   
-        
-        elif len(B_list[syl])==0:
-            B = syllable_dict['duration'][syl]
-            
-        
-        
-        
-        
         
         elif B + random_num*200 < 0 or B + random_num*200 > 3000:
             B-=random_num*200
@@ -255,12 +291,9 @@ for syl_index in np.arange(syllable_number.shape[0]):
             theta_2 -= random_num*0.2
         else:
             theta_2 += random_num*0.2
-            
-        if len(T_values_list[syl]) == 0:
-            T = syllable_dict['duration'][syl]
-            
-        else:
-            T = T_values_list[syl][-1] +random_num/100
+        
+        # Alter the duration of the syllable in this phrase
+        T = T_values_list[syl][-1] +random_num/100
 
     num_repeats = syllable_dict['num_repeats'][syl]
     f_0_list[syl].append(f_0)
@@ -347,80 +380,23 @@ for syl_index in np.arange(syllable_number.shape[0]):
     # =============================================================================
     # W_t = (0.42 + 0.5*np.cos(np.pi * t/T) + 0.08*np.cos(2*np.pi * t/T))
     W_t = 0.5 * (1 - np.cos(2 * np.pi * t / T))
-
     phrase_waveform = np.array([])
+    labels_within_phrase = np.array([])
     for i in np.arange(num_repeats):
         
         waveform_filtered_envelope = y_arr * W_t
         phrase_waveform = np.concatenate((phrase_waveform, waveform_filtered_envelope))
+        
+        # We will denote the last 10 ms of the syllable as silence
+        # silence_samples = t[np.where(t>=np.max(t)-0.01)].shape[0]
+        # syllable_labels = np.concatenate((np.repeat(syl, t.shape[0]-silence_samples), np.repeat(999, silence_samples)))
+        syllable_labels = np.repeat(syl, t.shape[0])
+        labels_within_phrase = np.concatenate((labels_within_phrase, syllable_labels))
     
     total_envelope = np.concatenate((total_envelope, phrase_waveform))
-        
-
-        
-# Sample parameters
-window_duration_seconds = 0.02  # 40 ms window
-window_size = int(sampling_freq * window_duration_seconds)
-overlap_fraction = 0.9          # 90 percent overlap           
-overlap = int(window_size * overlap_fraction) 
-
-# =============================================================================
-# # Raw signal
-# =============================================================================
-# write('/Users/ananyakapoor/Desktop/raw_signal.wav', sampling_freq, total_signal_wave)
+    labels_per_sample = np.concatenate((labels_per_sample, labels_within_phrase))
 
 
-# frequencies, times, spectrogram = signal.spectrogram(total_signal_wave, fs=sampling_freq,
-#                                                     window='hamming', nperseg=256,
-#                                                     noverlap=128, nfft=512)
-
-# Compute the spectrogram
-# frequencies, times, spectrogram = signal.spectrogram(
-#     total_signal_wave,
-#     fs=sampling_freq,
-#     window='hamming',
-#     nperseg=int(window_duration_seconds * sampling_freq),
-#     noverlap=int(window_duration_seconds * sampling_freq * overlap_fraction)
-# )
-
-
-
-# # Plot the spectrogram
-# plt.figure()
-# plt.pcolormesh(times, frequencies, 10 * np.log10(spectrogram), shading='auto', cmap='inferno')
-# plt.colorbar(label='Power Spectral Density (dB/Hz)')
-# plt.xlabel('Time (s)')
-# plt.ylabel('Frequency (Hz)')
-# plt.title("Raw")
-# plt.show()
-
-# =============================================================================
-# # Filtered signal
-# =============================================================================
-
-# write('/Users/ananyakapoor/Desktop/filtered_only_signal.wav', sampling_freq, total_filtered)
-
-# frequencies, times, spectrogram = signal.spectrogram(total_filtered, fs=sampling_freq,
-#                                                     window='hamming', nperseg=256,
-#                                                     noverlap=128, nfft=512)
-
-
-
-# # Plot the spectrogram
-# plt.figure()
-# plt.pcolormesh(times, frequencies, 10 * np.log10(spectrogram), shading='auto', cmap='inferno')
-# plt.colorbar(label='Power Spectral Density (dB/Hz)')
-# plt.xlabel('Time (s)')
-# plt.ylabel('Frequency (Hz)')
-# plt.title("Filtered Only")
-# plt.show()
-
-
-# =============================================================================
-# # Enveloped signal
-# =============================================================================
-
-# Perform running amplitude normalization
 normalized_signal = np.zeros_like(total_envelope)
 
 for i in range(0, len(total_envelope) - window_size + 1, window_size - overlap):
@@ -433,45 +409,47 @@ for i in range(0, len(total_envelope) - window_size + 1, window_size - overlap):
 frequencies, times, spectrogram = signal.spectrogram(
     normalized_signal,
     fs=sampling_freq,
-    window='bartlett',
+    window='hamming',
     nperseg=int(window_duration_seconds * sampling_freq),
     noverlap=int(window_duration_seconds * sampling_freq * overlap_fraction)
 )
 
-
-# frequencies, times, spectrogram = signal.spectrogram(total_envelope, fs=sampling_freq,
-#                                                     window='hamming', nperseg=256,
-#                                                     noverlap=128, nfft=512)
-
-
-# # Plot the spectrogram
 plt.figure()
-plt.pcolormesh(times, frequencies, 10 * np.log10(spectrogram), shading='auto', cmap='inferno')
-plt.colorbar(label='Power Spectral Density (dB/Hz)')
-plt.xlabel('Time (s)')
-plt.ylabel('Frequency (Hz)')
-plt.title("Enveloped and Filtered")
+plt.pcolormesh(times, frequencies, spectrogram, cmap='jet')
 plt.show()
 
+# Calculate the number of samples and pixels
+num_samples = len(normalized_signal)
+num_pixels = spectrogram.shape[1]
 
-# Save the following data
-# 1. The audio representation
-# 2. a structure containing the times, frequencies, and spectrogram data
+# Create an array to store labels per pixel
+labels_per_pixel = np.zeros(num_pixels)
+
+# Calculate the mapping between samples and pixels
+samples_per_pixel = (window_size - overlap)
+mapping = np.arange(0, num_samples - window_size + 1, samples_per_pixel)
+
+# Map each label to the corresponding time pixel in the spectrogram using majority voting
+for i in range(num_pixels):
+    start_sample = mapping[i]
+    end_sample = start_sample + samples_per_pixel
+    labels_in_window = labels_per_sample[start_sample:end_sample]
+    labels_per_pixel[i] = np.bincount(labels_in_window.astype('int')).argmax()
 
 dat = {
-       's': spectrogram,
-       't': times, 
-       'f':frequencies
-       }
+        's': spectrogram,
+        't': times, 
+        'f':frequencies, 
+        'labels':labels_per_pixel
+        }
 
 np.savez(f'{folderpath}synthetic_data.npz', **dat)
 write(f'{folderpath}enveloped_filtered_signal.wav', sampling_freq, normalized_signal)
 
 # %% Let's plot the parameter regime 
 
-# Paired (for two syllables) bar plot of parameters 
-
 import pandas as pd
+import seaborn as sns
 
 f_0_flattened = [item for sublist in f_0_list for item in (sublist if isinstance(sublist, list) else [sublist])]
 B_flattened = [item for sublist in B_list for item in (sublist if isinstance(sublist, list) else [sublist])]
@@ -487,9 +465,9 @@ T_flattened = [item for sublist in T_values_list for item in (sublist if isinsta
 syllables_flattened = np.array([])
 for i in np.arange(np.unique(syllable_number).shape[0]):
     syllables_flattened = np.concatenate((syllables_flattened, i*np.ones(num_phrase_repeats)))
-    
+  
 df_dict = {
-    'Syllable': syllables_flattened.tolist(), 
+    'Syllable': syllables_flattened, 
     'f_0': f_0_flattened, 
     'B' : B_flattened,
     'phi_0': phi_0_flattened, 
@@ -504,50 +482,52 @@ df_dict = {
 
 df = pd.DataFrame(df_dict)
 
-
-grouped_df = df.groupby('Syllable').mean()
-
-import matplotlib.pyplot as plt
-
-# Assuming 'grouped_df' is the DataFrame with the mean values for each group
-groups_to_plot = grouped_df.index
-categories = grouped_df.columns
-num_groups = len(groups_to_plot)
-num_categories = len(categories)
-width = 0.35
-
-fig, ax = plt.subplots()
-
-# Position of the bars for each category label
-x = range(num_categories)
-
-# Plotting the bars for each group
-for i, group in enumerate(groups_to_plot):
-    values = grouped_df.loc[group].values
-    ax.bar([j + (i - 0.5) * width for j in x], values, width, label=group)
-
-# Set the x-axis tick positions and labels
-ax.set_xticks(x)
-ax.set_xticklabels(categories)
-
-# Set the labels and title
-ax.set_xlabel('Categories')
-ax.set_ylabel('Mean Values')
-ax.set_title('Paired Bar Plot')
-ax.legend()
-
-# Show the plot
+# plt.figure(figsize=(35, 35))
+sns.pairplot(df, hue = 'Syllable')
+# Adjust the layout to prevent clipping
+plt.tight_layout()
 plt.show()
 
+
+grouped_df = df.groupby('Syllable').mean()
 print(grouped_df.T)
 
-print(grouped_df.loc[0]-grouped_df.loc[1])
+# Let's get the labels at every time point
 
-# All the parameters are within the step size range. But the s
+labels = np.array([])
+total_syllable_duration_in_phrase = []
+syllable_counter = np.zeros((1,syllable_dict['syllable'].shape[0]))
+for i in np.arange(syllable_number.shape[0]):
+    syl = syllable_number[i]
+    labels_for_phrase = np.repeat(syl, syllable_dict['num_repeats'][syl])
+    labels = np.concatenate((labels, labels_for_phrase))   
+    syllable_duration_in_phrase = np.repeat(T_values_list[syl][int(syllable_counter[:,syl])], syllable_dict['num_repeats'][syl]).tolist()
+    total_syllable_duration_in_phrase.append(syllable_duration_in_phrase)
+    syllable_counter[:,syl]+=1
+    
+    
+import umap
 
+reducer = umap.UMAP()
+X  = df.iloc[:, 1:]
+X = X.values
+y = df.Syllable
+y = y.values
+embedding = reducer.fit_transform(X)
 
+plt.figure()
+plt.scatter(embedding[:,0], embedding[:,1], c=y, cmap='viridis', s=50)
 
-
-
-
-
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
+    
