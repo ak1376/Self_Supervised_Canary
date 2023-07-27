@@ -173,8 +173,8 @@ sampling_freq = 44100
 # =============================================================================
 
 num_syllables = 10
-num_short = 7
-num_long = 3
+num_short = 6
+num_long = 4
 
 mean_phi_0 = (np.random.uniform(0, 2*np.pi, num_syllables)).reshape(1, num_syllables)
 mean_delta_phi = (np.random.uniform(-3*np.pi/2, 3*np.pi/2, num_syllables)).reshape(1, num_syllables) # In radians
@@ -182,10 +182,10 @@ mean_B = (np.random.uniform(300, 500, num_syllables)).reshape(1, num_syllables) 
 mean_c = (np.random.uniform(40, 70, num_syllables)).reshape(1, num_syllables)
 mean_f_0 = (np.random.uniform(800, 1500, num_syllables)).reshape(1, num_syllables) # In Hz
 
-short_durations = np.random.uniform(20/1000, 90/1000, num_short)
-long_durations = np.random.uniform(100/1000, 200/1000, num_long)
-short_repeats = np.random.randint(20, 30, num_short)
-long_repeats = np.random.randint(3, 8, num_long)
+short_durations = np.random.uniform(50/1000, 90/1000, num_short)
+long_durations = np.random.uniform(100/1000, 400/1000, num_long)
+short_repeats = np.random.randint(50, 100, num_short)
+long_repeats = np.random.randint(3, 5, num_long)
 
 mean_T = np.concatenate((short_durations, long_durations))
 num_repeats = np.concatenate((short_repeats, long_repeats))
@@ -194,7 +194,7 @@ permutation = np.random.permutation(len(mean_T))
 
 mean_T = mean_T[permutation]
 mean_T.shape = (1, num_syllables)
-num_repeats = num_repeats[permutation]
+# num_repeats = num_repeats[permutation]
 
 mean_Z_1 = (np.random.uniform(0.88, 0.93, num_syllables)).reshape(1, num_syllables)
 mean_Z_2 = (np.random.uniform(0.88, 0.93, num_syllables)).reshape(1, num_syllables)
@@ -205,7 +205,27 @@ mean_theta_2 = (np.random.uniform(0.01, np.pi/2, num_syllables)).reshape(1, num_
 
 mean_matrix = np.concatenate((mean_phi_0, mean_delta_phi, mean_B, mean_c, mean_f_0, mean_T, mean_Z_1, mean_Z_2, mean_theta_1, mean_theta_2), axis = 0)
 
-covariance_matrix = 0.0000000000005 * np.eye(mean_matrix.shape[0]) 
+# # Define the desired low probability of being outside the range [-0.05 * mean, 0.05 * mean]
+# low_probability = 0.0000001  # You can change this to any desired probability
+
+# # Calculate the z-score corresponding to the desired low probability
+# from scipy.stats import norm
+# z_score = norm.ppf(1 - low_probability/2)
+
+# # Calculate the standard deviation (sigma) such that the probability of being outside the range is low
+# mean = mean_matrix  # You can change this to any desired mean
+# standard_deviation = abs(0.05 * mean / z_score)
+
+# covariance_matrix = np.zeros((num_syllables, 10, 10))
+
+# for syl in np.arange(num_syllables):
+#     covariance_matrix[syl, :, :] = np.eye(10)
+#     covariance_matrix[syl, :, :] *= standard_deviation[:,syl]
+
+
+# from scipy.stats import norm
+# cumulative_probability = 0.55 # 5% variation on average
+# covariance_matrix = norm.ppf(cumulative_probability)* np.eye(mean_matrix.shape[0]) 
 
 # covariance_matrix[0,0] = 1/8
 # covariance_matrix[1,1] = 1.5/8
@@ -223,7 +243,7 @@ unique_syllables = np.arange(num_syllables)
 syllable_phrase_order = unique_syllables.copy()
 np.random.shuffle(syllable_phrase_order) # ex: 0, 2, 1 means that we will simulate syllable 0 first, followed by 2 and then followed by 1
 
-phrase_repeats = 3
+phrase_repeats = 1
 syllable_phrase_order = np.repeat(syllable_phrase_order, phrase_repeats)
 np.random.shuffle(syllable_phrase_order) # The bird will sing a random arrangement of syllable phrases (random transition statistics)
 
@@ -257,16 +277,61 @@ low_frequency_check = 0
 high_frequency_check = 0
 
 # f_0 = 0
-
+num_repeats_list = []
 # Double for loop: one over the syllable phrase and the other over the number of repeats of syllable
 phrase_duration = []
 for syl in syllable_phrase_order:
+    # mu = mean_matrix[:,syl]
+    # mean_duration = mu[5]
+    # num_repeats = np.ceil(2 /mean_duration)
+    # num_repeats_list.append(num_repeats)
+        
     for i in np.arange(int(num_repeats[syl])):
         
+        
+        # We are going to ensure that each simulated parameter is within 1% of the mean value for the parameter. This will result in syllables with very little within-syllable variability
 
         # Draw acoustic parameters with respect to the mean vector corresponding to the syllable we are simulating
-        acoustic_params = np.random.multivariate_normal(mean_matrix[:,syl], covariance_matrix)
+        mu = mean_matrix[:,syl]
         
+        # Define the desired radius (strictly within 0.05 from the centroid)
+        radius = 0.05
+        
+        # Number of random points to generate
+        num_points = 1
+        
+        # Number of dimensions (size of the centroid array)
+        num_dimensions = mu.shape[0]
+        
+        # Generate random directions (unit vectors) in num_dimensions-dimensional space
+        random_directions = np.random.randn(num_points, num_dimensions)
+        random_directions /= np.linalg.norm(random_directions, axis=1)[:, np.newaxis]
+        
+        # Generate random distances within the desired radius for each dimension
+        random_distances = radius * np.random.rand(num_points) ** (1/num_dimensions)
+        
+        # Calculate the final random points within the hypersphere
+        acoustic_params = mu + random_distances[:, np.newaxis] * random_directions
+        acoustic_params.shape = (10,)
+
+
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        
+        # for param in np.arange(10):
+        #     sim_param = (np.random.uniform(mu[param] - mu[param]*0.05, mu[param]+mu[param]*0.05, 1))
+        #     acoustic_params = np.concatenate((acoustic_params, sim_param))
+    
+        # acoustic_params = np.random.multivariate_normal(mean_matrix[:,syl], covariance_matrix[syl, :, :])
+        
+        # tab = np.concatenate((mean_matrix[:,syl].reshape(10,1), acoustic_params.reshape(10,1)), axis = 1)
         # if low_frequency_check == 1:
         #     f_0 += 50
         #     acoustic_params[4] = f_0 
@@ -306,6 +371,9 @@ for syl in syllable_phrase_order:
         
         theta_2 = acoustic_params[9]
         theta_2_vector.append(theta_2)
+        
+        # Let's create a table where we have the sampled acoustic parameters plotted against the mean acoustic parameters
+        tab = np.concatenate((mean_matrix[:,syl].reshape(10,1), acoustic_params.reshape(10,1)), axis = 1)
         
         num_samples = int((T)*sampling_freq)
         t = np.linspace(0, ((T)), num_samples) 
@@ -454,6 +522,8 @@ dat = {
 write(f'{folderpath}enveloped_filtered_signal_normalized.wav', sampling_freq, total_envelope)
 
 
+# num_repeats = np.array(num_repeats_list)
+
 syllables = np.array([])
 for syl in syllable_phrase_order:
     repeats = num_repeats[syl]
@@ -572,49 +642,49 @@ plt.show()
 # # # =============================================================================
 
 
-# # import wave
-# # import numpy as np
-# # import matplotlib.pyplot as plt
+import wave
+import numpy as np
+import matplotlib.pyplot as plt
 
-# # # Open the .wav file
-# # wav_file = wave.open('/Users/AnanyaKapoor/Downloads/1108214s_sound/gardnersound4.wav', 'r')
+# Open the .wav file
+wav_file = wave.open('/Users/AnanyaKapoor/Downloads/1108214s_sound/gardnersound4.wav', 'r')
 
-# # # Get the audio file parameters
-# # sample_width = wav_file.getsampwidth()
-# # sample_rate = wav_file.getframerate()
-# # num_frames = wav_file.getnframes()
+# Get the audio file parameters
+sample_width = wav_file.getsampwidth()
+sample_rate = wav_file.getframerate()
+num_frames = wav_file.getnframes()
 
-# # # Read the audio data
-# # audio_data = wav_file.readframes(num_frames)
+# Read the audio data
+audio_data = wav_file.readframes(num_frames)
 
-# # # Convert the audio data to a numpy array
-# # audio_array = np.frombuffer(audio_data, dtype=np.int16)
+# Convert the audio data to a numpy array
+audio_array = np.frombuffer(audio_data, dtype=np.int16)
 
-# # # Close the .wav file
-# # wav_file.close()
+# Close the .wav file
+wav_file.close()
 
-# # # Generate the time axis
-# # duration = num_frames / sample_rate
-# # t_groundtruth = np.linspace(0, duration, num_frames)
+# Generate the time axis
+duration = num_frames / sample_rate
+t_groundtruth = np.linspace(0, duration, num_frames)
 
-# # # Plot the waveform
-# # plt.figure()
-# # plt.plot(t_groundtruth, audio_array)
-# # plt.xlabel('Time (s)')
-# # plt.ylabel('Amplitude')
-# # plt.title('Ground Truth Waveform')
-# # plt.show()
+# Plot the waveform
+plt.figure()
+plt.plot(t_groundtruth, audio_array)
+plt.xlabel('Time (s)')
+plt.ylabel('Amplitude')
+plt.title('Ground Truth Waveform')
+plt.show()
 
-# # from scipy import signal
+from scipy import signal
 
-# # frequencies, times, spectrogram = signal.spectrogram(audio_array, fs=sample_rate,
-# #                                                     window='hamming', nperseg=256,
-# #                                                     noverlap=128, nfft=512)
+frequencies, times, spectrogram = signal.spectrogram(audio_array, fs=sample_rate,
+                                                    window='hamming', nperseg=256,
+                                                    noverlap=128, nfft=512)
 
-# # plt.figure()
-# # plt.title("Tim's Synthetic Song")
-# # plt.pcolormesh(times, frequencies, spectrogram, cmap='jet')
-# # plt.show()
+plt.figure()
+plt.title("Tim's Synthetic Song")
+plt.pcolormesh(times, frequencies, spectrogram, cmap='jet')
+plt.show()
 
 
 # # # =============================================================================
@@ -622,7 +692,7 @@ plt.show()
 # # # =============================================================================
 
 # import numpy as np
-# dat = np.load('/Users/AnanyaKapoor/Dropbox (University of Oregon)/Kapoor_Ananya/01_Projects/01_a_Rotations/Gardner_Lab/Canary_Data/llb3/llb3_data_matrices/Python_Files/llb3_0003_2018_04_23_14_18_54.wav.npz')
+# dat = np.load('/Users/AnanyaKapoor/Dropbox (University of Oregon)/Kapoor_Ananya/01_Projects/01_a_Rotations/Gardner_Lab/Canary_Data/llb3/llb3_data_matrices/Python_Files/llb3_0014_2018_04_23_15_18_14.wav.npz')
 # spec = dat['s']
 # times = dat['t']
 # frequencies = dat['f']
@@ -633,39 +703,29 @@ plt.show()
 # plt.pcolormesh(times, frequencies, spec, cmap='jet')
 # plt.show()
 
+# import wave
+# import numpy as np
+# import matplotlib.pyplot as plt
 
+# wav_file = wave.open('/Users/AnanyaKapoor/Dropbox (University of Oregon)/Kapoor_Ananya/01_Projects/01_a_Rotations/Gardner_Lab/Canary_Data/llb3/llb3_songs/llb3_0014_2018_04_23_15_18_14.wav', 'r')
 
+# # Get the audio file parameters
+# sample_width = wav_file.getsampwidth()
+# sample_rate = wav_file.getframerate()
+# num_frames = wav_file.getnframes()
 
+# # Read the audio data
+# audio_data = wav_file.readframes(num_frames)
 
+# # Convert the audio data to a numpy array
+# audio_array = np.frombuffer(audio_data, dtype=np.int16)
 
+# # Close the .wav file
+# wav_file.close()
 
-
-
-
-
-
-
-
-
-# # import wave
-# # import numpy as np
-# # import matplotlib.pyplot as plt
-
-# # wav_file = wave.open('/Users/AnanyaKapoor/Dropbox (University of Oregon)/Kapoor_Ananya/01_Projects/01_a_Rotations/Gardner_Lab/Canary_Data/llb3/llb3_songs/llb3_0002_2018_04_23_14_18_03.wav', 'r')
-
-# # # Get the audio file parameters
-# # sample_width = wav_file.getsampwidth()
-# # sample_rate = wav_file.getframerate()
-# # num_frames = wav_file.getnframes()
-
-# # # Read the audio data
-# # audio_data = wav_file.readframes(num_frames)
-
-# # # Convert the audio data to a numpy array
-# # audio_array = np.frombuffer(audio_data, dtype=np.int16)
-
-# # # Close the .wav file
-# # wav_file.close()
+# plt.figure()
+# plt.plot(audio_array)
+# plt.show()
 
 # # frequencies, times, spectrogram = signal.spectrogram(audio_array, fs=sample_rate,
 # #                                                     window='hamming', nperseg=256,
