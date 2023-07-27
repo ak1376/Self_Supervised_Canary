@@ -178,14 +178,14 @@ num_long = 3
 
 mean_phi_0 = (np.random.uniform(0, 2*np.pi, num_syllables)).reshape(1, num_syllables)
 mean_delta_phi = (np.random.uniform(-3*np.pi/2, 3*np.pi/2, num_syllables)).reshape(1, num_syllables) # In radians
-mean_B = (np.random.uniform(0, 750, num_syllables)).reshape(1, num_syllables) # In Hz
+mean_B = (np.random.uniform(300, 500, num_syllables)).reshape(1, num_syllables) # In Hz
 mean_c = (np.random.uniform(40, 70, num_syllables)).reshape(1, num_syllables)
 mean_f_0 = (np.random.uniform(800, 1500, num_syllables)).reshape(1, num_syllables) # In Hz
 
-short_durations = np.random.uniform(20/1000, 70/1000, num_short)
+short_durations = np.random.uniform(20/1000, 90/1000, num_short)
 long_durations = np.random.uniform(100/1000, 200/1000, num_long)
-short_repeats = np.random.randint(30, 50, num_short)
-long_repeats = np.random.randint(3, 5, num_long)
+short_repeats = np.random.randint(20, 30, num_short)
+long_repeats = np.random.randint(3, 8, num_long)
 
 mean_T = np.concatenate((short_durations, long_durations))
 num_repeats = np.concatenate((short_repeats, long_repeats))
@@ -205,7 +205,18 @@ mean_theta_2 = (np.random.uniform(0.01, np.pi/2, num_syllables)).reshape(1, num_
 
 mean_matrix = np.concatenate((mean_phi_0, mean_delta_phi, mean_B, mean_c, mean_f_0, mean_T, mean_Z_1, mean_Z_2, mean_theta_1, mean_theta_2), axis = 0)
 
-covariance_matrix = 0.00005*np.eye(mean_matrix.shape[0]) 
+covariance_matrix = 0.0000000000005 * np.eye(mean_matrix.shape[0]) 
+
+# covariance_matrix[0,0] = 1/8
+# covariance_matrix[1,1] = 1.5/8
+# covariance_matrix[2,2] = 100
+# covariance_matrix[3,3] = 2.5/8
+# covariance_matrix[4,4] = 0.0000005
+# covariance_matrix[5,5] = 0.00005
+# covariance_matrix[6,6] = 0.00000000005
+# covariance_matrix[7,7] = 0.00000000005
+# covariance_matrix[8,8] = 0.00000000005
+# covariance_matrix[9,9] = 0.00000000005
 
 # Let's find a random order of syllable phrases to simulate 
 unique_syllables = np.arange(num_syllables)
@@ -232,7 +243,7 @@ theta_2_vector = []
 total_signal_wave = np.array([])
 total_filtered = np.array([])
 total_envelope = np.array([])
-
+total_normalized_signal = np.array([])
 
 # Sample parameters
 window_duration_seconds = 0.02  # 40 ms window
@@ -242,14 +253,28 @@ overlap = int(window_size * overlap_fraction)
 
 labels_per_sample = np.array([])
 
+low_frequency_check = 0 
+high_frequency_check = 0
+
+# f_0 = 0
 
 # Double for loop: one over the syllable phrase and the other over the number of repeats of syllable
 phrase_duration = []
 for syl in syllable_phrase_order:
     for i in np.arange(int(num_repeats[syl])):
         
+
         # Draw acoustic parameters with respect to the mean vector corresponding to the syllable we are simulating
         acoustic_params = np.random.multivariate_normal(mean_matrix[:,syl], covariance_matrix)
+        
+        # if low_frequency_check == 1:
+        #     f_0 += 50
+        #     acoustic_params[4] = f_0 
+        # elif high_frequency_check == 1:
+        #     f_0 -= 50
+        #     acoustic_params[4] = f_0 
+        
+            
         
         phi_0 = acoustic_params[0]
         phi_0_vector.append(phi_0)
@@ -292,9 +317,13 @@ for syl in syllable_phrase_order:
         
         if np.min(f)<700:
             low_frequency_check = 1
+        else:
+            low_frequency_check = 0
             
         if np.max(f)>3000:
             high_frequency_check = 1
+        else:
+            high_frequency_check = 0
                 
         
         # It's the B*np.cos(phi_0_values + delta_phi_values*t/T) that gives the fundamental frequency its wavy shape. f_0 just shifts it up
@@ -344,46 +373,61 @@ for syl in syllable_phrase_order:
         y_arr = signal.lfilter(b, a, s_t_arr)
 
         total_filtered = np.concatenate((total_filtered, y_arr))
+        
+        normalized_signal = np.zeros_like(y_arr)
+
+        for i in range(0, len(y_arr) - window_size + 1, window_size - overlap):
+            window = y_arr[i:i + window_size]  # Extract a window of the signal
+            scaling_factor = 1.0 / np.max(np.abs(window))  # Calculate the scaling factor
+            normalized_signal[i:i + window_size] = window * scaling_factor  # Normalize the window
+
+        total_normalized_signal = np.concatenate((total_normalized_signal, normalized_signal))
             
         #     # Enveloped signal 
         
         # W_t = (0.42 + 0.5*np.cos(np.pi * t/T) + 0.08*np.cos(2*np.pi * t/T))
         W_t = 0.5 * (1 - np.cos(2 * np.pi * t / T))
             
-        waveform_filtered_envelope = y_arr * W_t
+        waveform_filtered_envelope = normalized_signal * W_t
         
         total_envelope = np.concatenate((total_envelope, waveform_filtered_envelope))
         
     phrase_duration.append(waveform_filtered_envelope.shape[0]/44100)
 
-normalized_signal = np.zeros_like(total_envelope)
+# normalized_signal = np.zeros_like(total_envelope)
 
-for i in range(0, len(total_envelope) - window_size + 1, window_size - overlap):
-    window = total_envelope[i:i + window_size]  # Extract a window of the signal
-    scaling_factor = 1.0 / np.max(np.abs(window))  # Calculate the scaling factor
-    normalized_signal[i:i + window_size] = window * scaling_factor  # Normalize the window
+# for i in range(0, len(total_envelope) - window_size + 1, window_size - overlap):
+#     window = total_envelope[i:i + window_size]  # Extract a window of the signal
+#     scaling_factor = 1.0 / np.max(np.abs(window))  # Calculate the scaling factor
+#     normalized_signal[i:i + window_size] = window * scaling_factor  # Normalize the window
 
 # Compute the spectrogram
-frequencies, times, spectrogram = signal.spectrogram(
-    normalized_signal,
-    fs=sampling_freq,
-    window='hamming',
-    nperseg=int(window_duration_seconds * sampling_freq),
-    noverlap=int(window_duration_seconds * sampling_freq * overlap_fraction)
-)
+# frequencies, times, spectrogram = signal.spectrogram(
+#     normalized_signal,
+#     fs=sampling_freq,
+#     window='hamming',
+#     nperseg=int(window_duration_seconds * sampling_freq),
+#     noverlap=int(window_duration_seconds * sampling_freq * overlap_fraction)
+# )
+
+frequencies, times, spectrogram = signal.spectrogram(total_envelope, fs=sampling_freq,
+                                                    window='hamming', nperseg=256,
+                                                    noverlap=128, nfft=512)
 
 plt.figure()
 plt.pcolormesh(times, frequencies, spectrogram, cmap='jet')
 plt.show()
 
 # Calculate the number of samples and pixels
-num_samples = len(normalized_signal)
+num_samples = len(total_envelope)
 num_pixels = spectrogram.shape[1]
 
 # Create an array to store labels per pixel
 labels_per_pixel = np.zeros(num_pixels)
 
-# Calculate the mapping between samples and pixels
+# # Calculate the mapping between samples and pixels
+overlap = 128
+window_size = 256
 samples_per_pixel = (window_size - overlap)
 mapping = np.arange(0, num_samples - window_size + 1, samples_per_pixel)
 
@@ -394,6 +438,11 @@ for i in range(num_pixels):
     labels_in_window = labels_per_sample[start_sample:end_sample]
     labels_per_pixel[i] = np.bincount(labels_in_window.astype('int')).argmax()
 
+times_and_labels = np.concatenate((times.reshape(times.shape[0],1), labels_per_pixel.reshape(labels_per_pixel.shape[0],1)), axis = 1)
+
+
+
+
 dat = {
         's': spectrogram,
         't': times, 
@@ -401,8 +450,8 @@ dat = {
         'labels':labels_per_pixel
         }
 
-# np.savez(f'{folderpath}synthetic_data.npz', **dat)
-write(f'{folderpath}enveloped_filtered_signal.wav', sampling_freq, normalized_signal)
+# # np.savez(f'{folderpath}synthetic_data.npz', **dat)
+write(f'{folderpath}enveloped_filtered_signal_normalized.wav', sampling_freq, total_envelope)
 
 
 syllables = np.array([])
@@ -436,11 +485,11 @@ import seaborn as sns
 import umap
 df = pd.DataFrame(df_dict)
 
-# plt.figure(figsize=(35, 35))
-# sns.pairplot(df, hue = 'Syllable')
-# # Adjust the layout to prevent clipping
-# plt.tight_layout()
-# plt.show()
+# # plt.figure(figsize=(35, 35))
+# # sns.pairplot(df, hue = 'Syllable')
+# # # Adjust the layout to prevent clipping
+# # plt.tight_layout()
+# # plt.show()
 
 grouped_df = df.groupby('Syllable').mean()
 print(grouped_df.T)
@@ -473,7 +522,11 @@ plt.legend()
 
 plt.show()
 
-# %% Now I want to plot the phrase durations across all phrases in our song
+plt.figure()
+plt.plot(total_envelope)
+plt.show()
+
+# # %% Now I want to plot the phrase durations across all phrases in our song
 
 # plt.figure()
 # plt.hist(phrase_duration)
@@ -504,9 +557,9 @@ plt.hist(phrase_duration_arr, bins=10, density=True, alpha=0.5, label='Histogram
 plt.plot(x, y, color='red', label='Density Curve')
 
 # Set plot labels and title
-plt.xlabel('Data')
+plt.xlabel('Phrase Duration')
 plt.ylabel('Density')
-plt.title('Histogram with Density Curve')
+plt.title('Distribution of Phrase Durations')
 
 # Show the legend
 plt.legend()
@@ -514,6 +567,71 @@ plt.legend()
 plt.show()
 
 
+# # # =============================================================================
+# # # # GROUND TRUTH SIMULATION WAVEFORM -- Gardner supplemental
+# # # =============================================================================
+
+
+# # import wave
+# # import numpy as np
+# # import matplotlib.pyplot as plt
+
+# # # Open the .wav file
+# # wav_file = wave.open('/Users/AnanyaKapoor/Downloads/1108214s_sound/gardnersound4.wav', 'r')
+
+# # # Get the audio file parameters
+# # sample_width = wav_file.getsampwidth()
+# # sample_rate = wav_file.getframerate()
+# # num_frames = wav_file.getnframes()
+
+# # # Read the audio data
+# # audio_data = wav_file.readframes(num_frames)
+
+# # # Convert the audio data to a numpy array
+# # audio_array = np.frombuffer(audio_data, dtype=np.int16)
+
+# # # Close the .wav file
+# # wav_file.close()
+
+# # # Generate the time axis
+# # duration = num_frames / sample_rate
+# # t_groundtruth = np.linspace(0, duration, num_frames)
+
+# # # Plot the waveform
+# # plt.figure()
+# # plt.plot(t_groundtruth, audio_array)
+# # plt.xlabel('Time (s)')
+# # plt.ylabel('Amplitude')
+# # plt.title('Ground Truth Waveform')
+# # plt.show()
+
+# # from scipy import signal
+
+# # frequencies, times, spectrogram = signal.spectrogram(audio_array, fs=sample_rate,
+# #                                                     window='hamming', nperseg=256,
+# #                                                     noverlap=128, nfft=512)
+
+# # plt.figure()
+# # plt.title("Tim's Synthetic Song")
+# # plt.pcolormesh(times, frequencies, spectrogram, cmap='jet')
+# # plt.show()
+
+
+# # # =============================================================================
+# # # # # Let's look at a real canary song spectrogram 
+# # # =============================================================================
+
+# import numpy as np
+# dat = np.load('/Users/AnanyaKapoor/Dropbox (University of Oregon)/Kapoor_Ananya/01_Projects/01_a_Rotations/Gardner_Lab/Canary_Data/llb3/llb3_data_matrices/Python_Files/llb3_0003_2018_04_23_14_18_54.wav.npz')
+# spec = dat['s']
+# times = dat['t']
+# frequencies = dat['f']
+# labels = dat['labels']
+# labels = labels.T
+
+# plt.figure()
+# plt.pcolormesh(times, frequencies, spec, cmap='jet')
+# plt.show()
 
 
 
@@ -522,3 +640,37 @@ plt.show()
 
 
 
+
+
+
+
+
+
+
+# # import wave
+# # import numpy as np
+# # import matplotlib.pyplot as plt
+
+# # wav_file = wave.open('/Users/AnanyaKapoor/Dropbox (University of Oregon)/Kapoor_Ananya/01_Projects/01_a_Rotations/Gardner_Lab/Canary_Data/llb3/llb3_songs/llb3_0002_2018_04_23_14_18_03.wav', 'r')
+
+# # # Get the audio file parameters
+# # sample_width = wav_file.getsampwidth()
+# # sample_rate = wav_file.getframerate()
+# # num_frames = wav_file.getnframes()
+
+# # # Read the audio data
+# # audio_data = wav_file.readframes(num_frames)
+
+# # # Convert the audio data to a numpy array
+# # audio_array = np.frombuffer(audio_data, dtype=np.int16)
+
+# # # Close the .wav file
+# # wav_file.close()
+
+# # frequencies, times, spectrogram = signal.spectrogram(audio_array, fs=sample_rate,
+# #                                                     window='hamming', nperseg=256,
+# #                                                     noverlap=128, nfft=1024)
+
+# # plt.figure()
+# # plt.pcolormesh(times, frequencies, spectrogram, cmap='jet')
+# # plt.show()
