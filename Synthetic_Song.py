@@ -173,8 +173,8 @@ sampling_freq = 44100
 # =============================================================================
 
 num_syllables = 10
-num_short = 6
-num_long = 4
+num_short = 8
+num_long = 2
 
 mean_phi_0 = (np.random.uniform(0, 2*np.pi, num_syllables)).reshape(1, num_syllables)
 mean_delta_phi = (np.random.uniform(-3*np.pi/2, 3*np.pi/2, num_syllables)).reshape(1, num_syllables) # In radians
@@ -182,13 +182,13 @@ mean_B = (np.random.uniform(300, 500, num_syllables)).reshape(1, num_syllables) 
 mean_c = (np.random.uniform(40, 70, num_syllables)).reshape(1, num_syllables)
 mean_f_0 = (np.random.uniform(800, 1500, num_syllables)).reshape(1, num_syllables) # In Hz
 
-short_durations = np.random.uniform(50/1000, 90/1000, num_short)
+short_durations = np.random.uniform(30/1000, 90/1000, num_short)
 long_durations = np.random.uniform(100/1000, 400/1000, num_long)
-short_repeats = np.random.randint(50, 100, num_short)
-long_repeats = np.random.randint(3, 5, num_long)
+# short_repeats = np.random.randint(50, 100, num_short)
+# long_repeats = np.random.randint(3, 5, num_long)
 
 mean_T = np.concatenate((short_durations, long_durations))
-num_repeats = np.concatenate((short_repeats, long_repeats))
+# num_repeats = np.concatenate((short_repeats, long_repeats))
 
 permutation = np.random.permutation(len(mean_T))
 
@@ -241,9 +241,12 @@ mean_matrix = np.concatenate((mean_phi_0, mean_delta_phi, mean_B, mean_c, mean_f
 # Let's find a random order of syllable phrases to simulate 
 unique_syllables = np.arange(num_syllables)
 syllable_phrase_order = unique_syllables.copy()
+phrase_repeats = 5
+
+num_songs = 3
+
 np.random.shuffle(syllable_phrase_order) # ex: 0, 2, 1 means that we will simulate syllable 0 first, followed by 2 and then followed by 1
 
-phrase_repeats = 1
 syllable_phrase_order = np.repeat(syllable_phrase_order, phrase_repeats)
 np.random.shuffle(syllable_phrase_order) # The bird will sing a random arrangement of syllable phrases (random transition statistics)
 
@@ -279,23 +282,25 @@ high_frequency_check = 0
 # f_0 = 0
 num_repeats_list = []
 # Double for loop: one over the syllable phrase and the other over the number of repeats of syllable
-phrase_duration = []
+phrase_duration_list = []
 for syl in syllable_phrase_order:
     # mu = mean_matrix[:,syl]
     # mean_duration = mu[5]
     # num_repeats = np.ceil(2 /mean_duration)
     # num_repeats_list.append(num_repeats)
         
-    for i in np.arange(int(num_repeats[syl])):
-        
-        
-        # We are going to ensure that each simulated parameter is within 1% of the mean value for the parameter. This will result in syllables with very little within-syllable variability
+    num_repeats = 0
+    phrase_duration = 0
+    
+    while phrase_duration < 1.4:
 
+        # We are going to ensure that each simulated parameter is within 1% of the mean value for the parameter. This will result in syllables with very little within-syllable variability
+    
         # Draw acoustic parameters with respect to the mean vector corresponding to the syllable we are simulating
         mu = mean_matrix[:,syl]
         
         # Define the desired radius (strictly within 0.05 from the centroid)
-        radius = 0.05
+        radius = 0.025
         
         # Number of random points to generate
         num_points = 1
@@ -314,16 +319,6 @@ for syl in syllable_phrase_order:
         acoustic_params = mu + random_distances[:, np.newaxis] * random_directions
         acoustic_params.shape = (10,)
 
-
-        
-        
-        
-        
-        
-        
-        
-        
-        
         
         # for param in np.arange(10):
         #     sim_param = (np.random.uniform(mu[param] - mu[param]*0.05, mu[param]+mu[param]*0.05, 1))
@@ -348,13 +343,13 @@ for syl in syllable_phrase_order:
         delta_phi_vector.append(delta_phi)
         
         B = acoustic_params[2]
-        B_vector.append(B)
+        # B_vector.append(B)
         
         c = acoustic_params[3]
         c_vector.append(c)
         
         f_0 = acoustic_params[4]
-        f_0_vector.append(f_0)
+        # f_0_vector.append(f_0)
         
         T = acoustic_params[5]
         T_vector.append(T)
@@ -383,17 +378,40 @@ for syl in syllable_phrase_order:
         syllable_labels = np.repeat(syl, t.shape[0])
         labels_per_sample = np.concatenate((labels_per_sample, syllable_labels))
         
-        if np.min(f)<700:
-            low_frequency_check = 1
-        else:
-            low_frequency_check = 0
-            
-        if np.max(f)>3000:
-            high_frequency_check = 1
-        else:
-            high_frequency_check = 0
-                
         
+        while np.min(f)<700:
+            low_frequency_check = 1
+            f_0+=50
+            B -=20
+            f = f_0 + B*np.cos(phi_0 + delta_phi*t/T)
+        
+        while np.max(f)>3000:
+            high_frequency_check == 1
+            f_0-=50
+            B-=20
+            f = f_0 + B*np.cos(phi_0 + delta_phi*t/T)
+        
+        # if np.min(f)<700:
+        #     low_frequency_check = 1
+        #     f_0+=50
+        #     B-=20
+        # else:
+        #     low_frequency_check = 0
+            
+        # if np.max(f)>3000:
+        #     high_frequency_check = 1
+        #     f_0-=50
+        #     B-=20
+        # else:
+        #     high_frequency_check = 0
+            
+        # if (low_frequency_check ==1) or (high_frequency_check == 1):
+        #     # Recalculate the fundamental frequency across time with the new f_0 and B values
+        #     f = f_0 + B*np.cos(phi_0 + delta_phi*t/T)
+            
+                
+        f_0_vector.append(f_0)
+        B_vector.append(B)
         # It's the B*np.cos(phi_0_values + delta_phi_values*t/T) that gives the fundamental frequency its wavy shape. f_0 just shifts it up
         
         #     # Now let's calculate the harmonics 
@@ -460,8 +478,11 @@ for syl in syllable_phrase_order:
         
         total_envelope = np.concatenate((total_envelope, waveform_filtered_envelope))
         
-    phrase_duration.append(waveform_filtered_envelope.shape[0]/44100)
-
+        phrase_duration += waveform_filtered_envelope.shape[0]/44100
+        num_repeats +=1
+        
+    phrase_duration_list.append(phrase_duration)
+    num_repeats_list.append(num_repeats)
 # normalized_signal = np.zeros_like(total_envelope)
 
 # for i in range(0, len(total_envelope) - window_size + 1, window_size - overlap):
@@ -522,11 +543,12 @@ dat = {
 write(f'{folderpath}enveloped_filtered_signal_normalized.wav', sampling_freq, total_envelope)
 
 
-# num_repeats = np.array(num_repeats_list)
+num_repeats = np.array(num_repeats_list)
 
 syllables = np.array([])
-for syl in syllable_phrase_order:
-    repeats = num_repeats[syl]
+for syl_index in np.arange(syllable_phrase_order.shape[0]):
+    syl = syllable_phrase_order[syl_index]
+    repeats = num_repeats[syl_index]
     repeated_syllable = np.repeat(syl, repeats)
     syllables = np.concatenate((syllables, repeated_syllable))
     
@@ -596,13 +618,13 @@ plt.figure()
 plt.plot(total_envelope)
 plt.show()
 
-# # %% Now I want to plot the phrase durations across all phrases in our song
+# # # %% Now I want to plot the phrase durations across all phrases in our song
 
-# plt.figure()
-# plt.hist(phrase_duration)
-# plt.show()
+# # plt.figure()
+# # plt.hist(phrase_duration)
+# # plt.show()
 
-phrase_duration_arr = np.array(phrase_duration)
+phrase_duration_arr = np.array(phrase_duration_list)
 
 from scipy.stats import gaussian_kde
 
