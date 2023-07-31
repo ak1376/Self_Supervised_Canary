@@ -115,29 +115,37 @@ for i in np.arange(stacked_labels_for_window.shape[0]):
     mean_color = np.mean(all_colors_in_minispec, axis = 0)
     mean_colors_per_minispec[i,:] = mean_color
 
+# Let's save all the numpy arrays
+np.save(folderpath_song+'stacked_windows.npy', stacked_windows)
+np.save(folderpath_song+'labels_for_window.npy', labels_for_window)
+np.save(folderpath_song+'masked_frequencies_lowthresh_600_highthresh_4000.npy', masked_frequencies)
+np.save(folderpath_song+'stacked_window_times.npy', stacked_window_times)
+np.save(folderpath_song+'mean_colors_per_minispec.npy', mean_colors_per_minispec)
+
 # Perform a UMAP embedding on the dataset of mini-spectrograms
 reducer = umap.UMAP()
 embedding = reducer.fit_transform(stacked_windows)
+np.save(folderpath_song+'UMAP_Embedding_of_spec.npy', embedding)
 
 
-# # The below function will save an image for each mini-spectrogram. This will be used for understanding the UMAP plot.
-# def embeddable_image(data, window_times, iteration_number):
+# The below function will save an image for each mini-spectrogram. This will be used for understanding the UMAP plot.
+def embeddable_image(data, window_times, iteration_number):
     
-#     data.shape = (window_size, int(data.shape[0]/window_size))
-#     data = data.T 
-#     window_times = window_times.reshape(1, window_times.shape[0])
-#     plt.pcolormesh(window_times, masked_frequencies, data, cmap='jet')
-#     # let's save the plt colormesh as an image.
-#     plt.savefig(folderpath_song+'/Plots/Window_Plots/'+f'Window_{iteration_number}.png')
-#     plt.close()
+    data.shape = (window_size, int(data.shape[0]/window_size))
+    data = data.T 
+    window_times = window_times.reshape(1, window_times.shape[0])
+    plt.pcolormesh(window_times, masked_frequencies, data, cmap='jet')
+    # let's save the plt colormesh as an image.
+    plt.savefig(folderpath_song+'/Plots/Window_Plots/'+f'Window_{iteration_number}.png')
+    plt.close()
     
     
-# for i in np.arange(stacked_windows.shape[0]):
-#     if i%10 == 0:
-#         print(f'Iteration {i} of {stacked_windows.shape[0]}')
-#     data = stacked_windows[i,:]
-#     window_times = stacked_window_times[i,:]
-#     embeddable_image(data, window_times, i)
+for i in np.arange(stacked_windows.shape[0]):
+    if i%10 == 0:
+        print(f'Iteration {i} of {stacked_windows.shape[0]}')
+    data = stacked_windows[i,:]
+    window_times = stacked_window_times[i,:]
+    embeddable_image(data, window_times, i)
 
 # Specify an HTML file to save the Bokeh image to.
 output_file(filename=f'{folderpath_song}Plots/umap.html')
@@ -184,10 +192,10 @@ save(p)
 
 # %% Visualization of the UMAP 
 
-arr = np.array([])
-arr = np.vstack((stacked_window_times[:,0], stacked_window_times[:,-1]))
+# arr = np.array([])
+# arr = np.vstack((stacked_window_times[:,0], stacked_window_times[:,-1]))
 
-np.savez('/Users/ananyakapoor/Desktop/arr_for_plotting.npz', embStartEnd = arr,behavioralArr  = spec, embVals = embedding,neuroArr = spec)
+# np.savez('/Users/ananyakapoor/Desktop/arr_for_plotting.npz', embStartEnd = arr,behavioralArr  = spec, embVals = embedding,neuroArr = spec)
 
 
 # %% Implementation of the NCC classifier 
@@ -237,63 +245,5 @@ y_pred = svc_classifier.predict(embedding)
 # Evaluate the accuracy of the classifier
 accuracy = accuracy_score(actual_labels, y_pred)
 print(f"Accuracy: {accuracy:.2f}")
-
-
-
-# # Create a meshgrid to plot the decision boundaries
-# h = 0.02  # Step size in the meshgrid
-# x_min, x_max = embedding[:, 0].min() - 1, embedding[:, 0].max() + 1
-# y_min, y_max = embedding[:, 1].min() - 1, embedding[:, 1].max() + 1
-# xx, yy = np.meshgrid(np.arange(x_min, x_max, h), np.arange(y_min, y_max, h))
-
-# # Obtain the predicted class labels for each point in the meshgrid
-# Z = svc_classifier.predict(np.c_[xx.ravel(), yy.ravel()])
-# Z = Z.reshape(xx.shape)
-
-# # Plot the decision boundaries and the data points
-# plt.contourf(xx, yy, Z, cmap=plt.cm.Paired, alpha=0.8)
-# plt.scatter(embedding[:, 0], embedding[:, 1], c=actual_labels, cmap=plt.cm.Paired, edgecolors='k')
-# plt.xlabel('Feature 1')
-# plt.ylabel('Feature 2')
-# plt.title('Decision Boundaries from SVC')
-# plt.show()
-
-
-
-
-
-
-
-
-
-
-
-
-# import hdbscan
-
-# # Actual labels 
-
-# actual_labels = np.max(stacked_labels_for_window, axis = 1)
-# unique_syllables, counts = np.unique(actual_labels, return_counts = True)
-
-# clusterer = hdbscan.HDBSCAN(min_cluster_size=234)
-# # clusterer = hdbscan.HDBSCAN()
-# clusterer.fit(embedding)
-
-
-
-# labels_pred = clusterer.labels_
-
-# v_measure_score(actual_labels, labels_pred)
-
-# plt.figure()
-# plt.scatter(embedding[:, 0], embedding[:, 1], c=labels_pred, s=40, cmap='tab20');
-# plt.show()
-
-
-# len(np.unique(clusterer.labels_[clusterer.labels_ != -1]))
-
-
-
 
 
