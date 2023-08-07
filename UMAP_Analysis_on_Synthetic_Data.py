@@ -20,18 +20,28 @@ from bokeh.models import HoverTool, ColumnDataSource
 
 # %% Wow let's try UMAP now
 
+plt.close('all')
+plt.ioff()
 
 # Parameters we set
-num_spec = 1
+num_spec = 3
 window_size = 100
 stride = 10
+phrase_repeats = 5
+num_songs = 3
+radius_value = 0.025
+num_syllables = 10
+
+folderpath = '/Users/ananyakapoor/Dropbox (University of Oregon)/Kapoor_Ananya/01_Projects/01_b_Canary_SSL/Canary_SSL_Repo/'
+songpath = f'{folderpath}num_songs_{num_songs}_num_syllables_{num_syllables}_phrase_repeats_{phrase_repeats}_radius_{radius_value}/'
 
 
-folderpath_song = '/Users/ananyakapoor/Dropbox (University of Oregon)/Kapoor_Ananya/01_Projects/01_b_Canary_SSL/Canary_SSL_Repo/Song_0/'
-# plt.figure()
-# plt.pcolormesh(times, frequencies, spec, cmap='jet')
-# plt.show()
+files = os.listdir(folderpath)
+all_songs_data = [element for element in files if 'num_songs' in element] # Get the file paths of each numpy file from Yarden's data
+all_songs_data = os.listdir(f'{folderpath}{all_songs_data[0]}')
+all_songs_data = [element for element in all_songs_data if 'Song' in element] # Get the file paths of each numpy file from Yarden's data
 
+all_songs_data.sort()
 
 
 # For each spectrogram we will extract
@@ -39,24 +49,25 @@ folderpath_song = '/Users/ananyakapoor/Dropbox (University of Oregon)/Kapoor_Ana
 # 2. The spectrogram itself
 stacked_labels = [] 
 stacked_specs = []
-# Extract the data within the numpy file. We will use this to create the spectrogram
-dat = np.load(f'{folderpath_song}synthetic_data.npz')
-spec = dat['s']
-times = dat['t']
-frequencies = dat['f']
-labels = dat['labels']
-labels.shape = (1, labels.shape[0])
-labels = labels.T
+for i in np.arange(num_spec):
+    folderpath_song = f'{songpath}{all_songs_data[i]}'
+    # Extract the data within the numpy file. We will use this to create the spectrogram
+    dat = np.load(f'{folderpath_song}/synthetic_data.npz')
+    spec = dat['s']
+    times = dat['t']
+    frequencies = dat['f']
+    labels = dat['labels']
+    labels = labels.T
 
 
-# Let's get rid of higher order frequencies
-mask = (frequencies<4000)&(frequencies>600)
-masked_frequencies = frequencies[mask]
+    # Let's get rid of higher order frequencies
+    mask = (frequencies<4000)&(frequencies>500)
+    masked_frequencies = frequencies[mask]
 
-subsetted_spec = spec[mask.reshape(mask.shape[0],),:]
-
-stacked_labels.append(labels)
-stacked_specs.append(subsetted_spec)
+    subsetted_spec = spec[mask.reshape(mask.shape[0],),:]
+    
+    stacked_labels.append(labels)
+    stacked_specs.append(subsetted_spec)
 
     
 stacked_specs = np.concatenate((stacked_specs), axis = 1)
@@ -90,9 +101,9 @@ for i in range(0, spec_for_analysis.shape[0] - window_size + 1, stride):
     # We will flatten the window to be a 1D vector
     window = window.reshape(1, window.shape[0]*window.shape[1])
     # Extract the syllable labels for the window
-    labels_for_window = stacked_labels[i:i+window_size, :]
+    labels_for_window = stacked_labels[i:i+window_size]
     # Reshape the syllable labels for the window into a 1D array
-    labels_for_window = labels_for_window.reshape(1, labels_for_window.shape[0]*labels_for_window.shape[1])
+    labels_for_window = labels_for_window.reshape(1, labels_for_window.shape[0])
     # Populate the empty lists defined above
     stacked_windows.append(window)
     stacked_labels_for_window.append(labels_for_window)
@@ -114,21 +125,28 @@ for i in np.arange(stacked_labels_for_window.shape[0]):
     all_colors_in_minispec = np.array(list_of_colors_for_row)
     mean_color = np.mean(all_colors_in_minispec, axis = 0)
     mean_colors_per_minispec[i,:] = mean_color
-
+    
 # Let's save all the numpy arrays
-np.save(folderpath_song+'stacked_windows.npy', stacked_windows)
-np.save(folderpath_song+'labels_for_window.npy', labels_for_window)
-np.save(folderpath_song+'masked_frequencies_lowthresh_600_highthresh_4000.npy', masked_frequencies)
-np.save(folderpath_song+'stacked_window_times.npy', stacked_window_times)
-np.save(folderpath_song+'mean_colors_per_minispec.npy', mean_colors_per_minispec)
+np.save(f'{songpath}stacked_windows.npy', stacked_windows)
+np.save(f'{songpath}labels_for_window.npy', labels_for_window)
+np.save(f'{songpath}masked_frequencies_lowthresh_600_highthresh_4000.npy', masked_frequencies)
+np.save(f'{songpath}stacked_window_times.npy', stacked_window_times)
+np.save(f'{songpath}mean_colors_per_minispec.npy', mean_colors_per_minispec)
 
 # Perform a UMAP embedding on the dataset of mini-spectrograms
 reducer = umap.UMAP()
 embedding = reducer.fit_transform(stacked_windows)
-np.save(folderpath_song+'UMAP_Embedding_of_spec.npy', embedding)
-
+np.save(f'{songpath}UMAP_Embedding_of_spec.npy', embedding)
 
 # The below function will save an image for each mini-spectrogram. This will be used for understanding the UMAP plot.
+
+if not os.path.exists(f'{songpath}Plots/Window_Plots/'):
+    # Create the directory
+    os.makedirs(f'{songpath}Plots/Window_Plots/')
+    print("Directory created successfully.")
+else:
+    print("Directory already exists.")
+
 def embeddable_image(data, window_times, iteration_number):
     
     data.shape = (window_size, int(data.shape[0]/window_size))
@@ -136,19 +154,18 @@ def embeddable_image(data, window_times, iteration_number):
     window_times = window_times.reshape(1, window_times.shape[0])
     plt.pcolormesh(window_times, masked_frequencies, data, cmap='jet')
     # let's save the plt colormesh as an image.
-    plt.savefig(folderpath_song+'/Plots/Window_Plots/'+f'Window_{iteration_number}.png')
+    plt.savefig(f'{songpath}Plots/Window_Plots/Window_{iteration_number}.png')
     plt.close()
-    
-    
-for i in np.arange(stacked_windows.shape[0]):
-    if i%10 == 0:
-        print(f'Iteration {i} of {stacked_windows.shape[0]}')
-    data = stacked_windows[i,:]
-    window_times = stacked_window_times[i,:]
-    embeddable_image(data, window_times, i)
+
+# for i in np.arange(stacked_windows.shape[0]):
+#     if i%10 == 0:
+#         print(f'Iteration {i} of {stacked_windows.shape[0]}')
+#     data = stacked_windows[i,:]
+#     window_times = stacked_window_times[i,:]
+#     embeddable_image(data, window_times, i)
 
 # Specify an HTML file to save the Bokeh image to.
-output_file(filename=f'{folderpath_song}Plots/umap.html')
+output_file(filename=f'{songpath}Plots/umap.html')
 
 # Convert the UMAP embedding to a Pandas Dataframe
 spec_df = pd.DataFrame(embedding, columns=('x', 'y'))
@@ -181,16 +198,16 @@ p.add_tools(HoverTool(tooltips="""
 
 
 # Set the image path for each data point
-source.data['image'] = []
-for i in np.arange(spec_df.shape[0]):
-    source.data['image'].append(f'{folderpath_song}/Plots/Window_Plots/Window_{i}.png')
+# source.data['image'] = []
+# for i in np.arange(spec_df.shape[0]):
+#     source.data['image'].append(f'{folderpath_song}/Plots/Window_Plots/Window_{i}.png')
 
 show(p)
 
 save(p)
 
 
-# %% Visualization of the UMAP 
+# %% Visualization of the UMAP (Ethan's code)
 
 arr = np.array([])
 arr = np.vstack((stacked_window_times[:,0], stacked_window_times[:,-1]))

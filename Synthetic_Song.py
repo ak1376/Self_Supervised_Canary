@@ -27,9 +27,9 @@ plt.ioff()
 
 sampling_freq = 44100
 
-num_syllables = 2
-num_short = 1
-num_long = 1
+num_syllables = 10
+num_short = 8
+num_long = 2
 
 mean_phi_0 = (np.random.uniform(0, 2*np.pi, num_syllables)).reshape(1, num_syllables)
 mean_delta_phi = (np.random.uniform(-3*np.pi/2, 3*np.pi/2, num_syllables)).reshape(1, num_syllables) # In radians
@@ -65,7 +65,24 @@ unique_syllables = np.arange(num_syllables)
 syllable_phrase_order = unique_syllables.copy()
 phrase_repeats = 5
 
-num_songs = 1
+num_songs = 10
+
+radius_value = 0.01
+
+songpath = f'{folderpath}num_songs_{num_songs}_num_syllables_{num_syllables}_phrase_repeats_{phrase_repeats}_radius_{radius_value}/'
+
+if not os.path.exists(songpath):
+    # Create the directory
+    os.makedirs(songpath)
+    print(f"Directory '{songpath}' created successfully.")
+else:
+    print(f"Directory '{songpath}' already exists.")
+
+
+mean_matrix_df = pd.DataFrame(mean_matrix)
+mean_matrix_df.columns = ['mean_phi_0','mean_delta_phi','mean_B','mean_c','mean_f_0','mean_T','mean_Z_1', 'mean_Z_2', 'mean_theta_1', 'mean_theta_2']
+
+mean_matrix_df.to_csv(f'{songpath}mean_params_per_syllable.csv', index = False )
 
 # For each song we want to store the following information: 
     # 1. The phrase order of each song (which will be different for every song)
@@ -79,13 +96,13 @@ syllable_phrase_order_songs = np.zeros((num_songs, syllable_phrase_order.shape[0
 num_repeats_songs = np.zeros((num_songs, num_syllables*phrase_repeats))
 
 for song_index in np.arange(num_songs):
-    folderpath_song = f'{folderpath}Song_{song_index}/'
+    folderpath_song = f'{songpath}Song_{song_index}/'
     if not os.path.exists(folderpath_song):
         # Create the directory
         os.makedirs(folderpath_song)
-        print(f"Directory '{folderpath_song}' created successfully.")
+        print(f"Directory '{songpath}' created successfully.")
     else:
-        print(f"Directory '{folderpath_song}' already exists.")
+        print(f"Directory '{songpath}' already exists.")
         
 
     np.random.shuffle(syllable_phrase_order) # ex: 0, 2, 1 means that we will simulate syllable 0 first, followed by 2 and then followed by 1
@@ -145,7 +162,7 @@ for song_index in np.arange(num_songs):
             mu = mean_matrix[:,syl]
             
             # Define the desired radius (strictly within 0.05 from the centroid)
-            radius = 0.025
+            radius = radius_value
             
             # Number of random points to generate
             num_points = 1
@@ -589,98 +606,98 @@ for song_index in np.arange(num_songs):
 # %% Wow let's try UMAP now
 
 
-# Parameters we set
-num_spec = 1
-window_size = 100
-stride = 10
+# # Parameters we set
+# num_spec = 1
+# window_size = 100
+# stride = 10
 
-folderpath_song = f'{folderpath}Song_0/'
-# plt.figure()
-# plt.pcolormesh(times, frequencies, spec, cmap='jet')
-# plt.show()
-
-
-
-# For each spectrogram we will extract
-# 1. Each timepoint's syllable label
-# 2. The spectrogram itself
-stacked_labels = [] 
-stacked_specs = []
-# Extract the data within the numpy file. We will use this to create the spectrogram
-dat = np.load(f'{folderpath_song}synthetic_data.npz')
-spec = dat['s']
-times = dat['t']
-frequencies = dat['f']
-labels = dat['labels']
-labels.shape = (1, labels.shape[0])
-labels = labels.T
+# folderpath_song = f'{songpath}/Song_0/'
+# # plt.figure()
+# # plt.pcolormesh(times, frequencies, spec, cmap='jet')
+# # plt.show()
 
 
-# Let's get rid of higher order frequencies
-mask = (frequencies<4000)&(frequencies>600)
-masked_frequencies = frequencies[mask]
 
-subsetted_spec = spec[mask.reshape(mask.shape[0],),:]
+# # For each spectrogram we will extract
+# # 1. Each timepoint's syllable label
+# # 2. The spectrogram itself
+# stacked_labels = [] 
+# stacked_specs = []
+# # Extract the data within the numpy file. We will use this to create the spectrogram
+# dat = np.load(f'{songpath}synthetic_data.npz')
+# spec = dat['s']
+# times = dat['t']
+# frequencies = dat['f']
+# labels = dat['labels']
+# labels.shape = (1, labels.shape[0])
+# labels = labels.T
 
-stacked_labels.append(labels)
-stacked_specs.append(subsetted_spec)
+
+# # Let's get rid of higher order frequencies
+# mask = (frequencies<4000)&(frequencies>600)
+# masked_frequencies = frequencies[mask]
+
+# subsetted_spec = spec[mask.reshape(mask.shape[0],),:]
+
+# stacked_labels.append(labels)
+# stacked_specs.append(subsetted_spec)
 
     
-stacked_specs = np.concatenate((stacked_specs), axis = 1)
-stacked_labels = np.concatenate((stacked_labels), axis = 0)
+# stacked_specs = np.concatenate((stacked_specs), axis = 1)
+# stacked_labels = np.concatenate((stacked_labels), axis = 0)
 
-# Get a list of unique categories (syllable labels)
-unique_categories = np.unique(stacked_labels)
+# # Get a list of unique categories (syllable labels)
+# unique_categories = np.unique(stacked_labels)
 
-# Create a dictionary that maps categories to random colors
-category_colors = {category: np.random.rand(3,) for category in unique_categories}
+# # Create a dictionary that maps categories to random colors
+# category_colors = {category: np.random.rand(3,) for category in unique_categories}
 
-spec_for_analysis = stacked_specs.T
-window_labels_arr = []
-embedding_arr = []
-# Find the exact sampling frequency (the time in miliseconds between one pixel [timepoint] and another pixel)
-dx = np.diff(times)[0]
+# spec_for_analysis = stacked_specs.T
+# window_labels_arr = []
+# embedding_arr = []
+# # Find the exact sampling frequency (the time in miliseconds between one pixel [timepoint] and another pixel)
+# dx = np.diff(times)[0]
 
-# We will now extract each mini-spectrogram from the full spectrogram
-stacked_windows = []
-# Find the syllable labels for each mini-spectrogram
-stacked_labels_for_window = []
-# Find the mini-spectrograms onset and ending times 
-stacked_window_times = []
+# # We will now extract each mini-spectrogram from the full spectrogram
+# stacked_windows = []
+# # Find the syllable labels for each mini-spectrogram
+# stacked_labels_for_window = []
+# # Find the mini-spectrograms onset and ending times 
+# stacked_window_times = []
 
-# The below for-loop will find each mini-spectrogram (window) and populate the empty lists we defined above.
-for i in range(0, spec_for_analysis.shape[0] - window_size + 1, stride):
-    # Find the window
-    window = spec_for_analysis[i:i + window_size, :]
-    # Get the window onset and ending times
-    window_times = dx*np.arange(i, i + window_size)
-    # We will flatten the window to be a 1D vector
-    window = window.reshape(1, window.shape[0]*window.shape[1])
-    # Extract the syllable labels for the window
-    labels_for_window = stacked_labels[i:i+window_size, :]
-    # Reshape the syllable labels for the window into a 1D array
-    labels_for_window = labels_for_window.reshape(1, labels_for_window.shape[0]*labels_for_window.shape[1])
-    # Populate the empty lists defined above
-    stacked_windows.append(window)
-    stacked_labels_for_window.append(labels_for_window)
-    stacked_window_times.append(window_times)
+# # The below for-loop will find each mini-spectrogram (window) and populate the empty lists we defined above.
+# for i in range(0, spec_for_analysis.shape[0] - window_size + 1, stride):
+#     # Find the window
+#     window = spec_for_analysis[i:i + window_size, :]
+#     # Get the window onset and ending times
+#     window_times = dx*np.arange(i, i + window_size)
+#     # We will flatten the window to be a 1D vector
+#     window = window.reshape(1, window.shape[0]*window.shape[1])
+#     # Extract the syllable labels for the window
+#     labels_for_window = stacked_labels[i:i+window_size, :]
+#     # Reshape the syllable labels for the window into a 1D array
+#     labels_for_window = labels_for_window.reshape(1, labels_for_window.shape[0]*labels_for_window.shape[1])
+#     # Populate the empty lists defined above
+#     stacked_windows.append(window)
+#     stacked_labels_for_window.append(labels_for_window)
+#     stacked_window_times.append(window_times)
 
-# Convert the populated lists into a stacked numpy array
-stacked_windows = np.stack(stacked_windows, axis = 0)
-stacked_windows = np.squeeze(stacked_windows)
+# # Convert the populated lists into a stacked numpy array
+# stacked_windows = np.stack(stacked_windows, axis = 0)
+# stacked_windows = np.squeeze(stacked_windows)
 
-stacked_labels_for_window = np.stack(stacked_labels_for_window, axis = 0)
-stacked_labels_for_window = np.squeeze(stacked_labels_for_window)
+# stacked_labels_for_window = np.stack(stacked_labels_for_window, axis = 0)
+# stacked_labels_for_window = np.squeeze(stacked_labels_for_window)
 
-stacked_window_times = np.stack(stacked_window_times, axis = 0)
+# stacked_window_times = np.stack(stacked_window_times, axis = 0)
 
-# For each mini-spectrogram, find the average color across all unique syllables
-mean_colors_per_minispec = np.zeros((stacked_labels_for_window.shape[0], 3))
-for i in np.arange(stacked_labels_for_window.shape[0]):
-    list_of_colors_for_row = [category_colors[x] for x in stacked_labels_for_window[i,:]]
-    all_colors_in_minispec = np.array(list_of_colors_for_row)
-    mean_color = np.mean(all_colors_in_minispec, axis = 0)
-    mean_colors_per_minispec[i,:] = mean_color
+# # For each mini-spectrogram, find the average color across all unique syllables
+# mean_colors_per_minispec = np.zeros((stacked_labels_for_window.shape[0], 3))
+# for i in np.arange(stacked_labels_for_window.shape[0]):
+#     list_of_colors_for_row = [category_colors[x] for x in stacked_labels_for_window[i,:]]
+#     all_colors_in_minispec = np.array(list_of_colors_for_row)
+#     mean_color = np.mean(all_colors_in_minispec, axis = 0)
+#     mean_colors_per_minispec[i,:] = mean_color
 
 
 
