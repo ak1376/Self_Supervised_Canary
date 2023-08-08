@@ -23,6 +23,8 @@ import umap
 import os 
 
 folderpath = '/Users/ananyakapoor/Dropbox (University of Oregon)/Kapoor_Ananya/01_Projects/01_b_Canary_SSL/Canary_SSL_Repo/'
+sns.set(style='white', context='notebook', rc={'figure.figsize':(14,10)})
+
 plt.ioff()
 
 sampling_freq = 44100
@@ -79,10 +81,10 @@ else:
     print(f"Directory '{songpath}' already exists.")
 
 
-mean_matrix_df = pd.DataFrame(mean_matrix)
+mean_matrix_df = pd.DataFrame(mean_matrix.T)
 mean_matrix_df.columns = ['mean_phi_0','mean_delta_phi','mean_B','mean_c','mean_f_0','mean_T','mean_Z_1', 'mean_Z_2', 'mean_theta_1', 'mean_theta_2']
 
-mean_matrix_df.to_csv(f'{songpath}mean_params_per_syllable.csv', index = False )
+mean_matrix_df.to_csv(f'{songpath}mean_params_per_syllable.csv', index = True )
 
 # For each song we want to store the following information: 
     # 1. The phrase order of each song (which will be different for every song)
@@ -700,6 +702,50 @@ for song_index in np.arange(num_songs):
 #     mean_colors_per_minispec[i,:] = mean_color
 
 
+acoustic_params_all_songs = np.empty((0, 11))
+
+    
+# Create a list to store column vectors
+acoustic_params_columns = []
+
+for song_index in range(num_songs):
+    folderpath_song = f'{songpath}Song_{song_index}/'
+    acoustic_params_dat = np.load(f'{folderpath_song}acoustic_params_for_song.npz')
+    # Create a list to store column vectors
+    acoustic_params_columns = []
+
+    for key in acoustic_params_dat.keys():
+        array = acoustic_params_dat[key]
+        column_vector = array.reshape(-1, 1)
+        acoustic_params_columns.append(column_vector)
+    # Stack the column vectors horizontally to create the final array
+    acoustic_params_arr = np.hstack(acoustic_params_columns)    
+    acoustic_params_all_songs = np.concatenate((acoustic_params_all_songs, acoustic_params_arr))
+    
+import umap
+
+reducer = umap.UMAP()
+X  = acoustic_params_all_songs[:,1::]
+y = acoustic_params_all_songs[:,0]
+embedding = reducer.fit_transform(X)
+
+plt.figure()
+# plt.scatter(embedding[:,0], embedding[:,1], c=y, cmap='viridis', s=50)
+
+categories = y 
+
+# Create separate scatter plots for each category
+for category in np.unique(categories):
+    mask = categories == category
+    plt.scatter(embedding[mask,0], embedding[mask,1], label=category, s=50)
+
+# Set plot labels and title
+plt.xlabel('UMAP 1')
+plt.ylabel('UMAP 2')
+plt.title(f'UMAP Embedding of the Parameter Regimes for Each Syllable across all songs')
+
+# Show the legend
+plt.legend()
 
 
 

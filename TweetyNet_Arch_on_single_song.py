@@ -143,7 +143,7 @@ class TweetyNetCNN(nn.Module):
         self.relu = nn.ReLU()
         self.fc1 = nn.Linear(64*1*36, 1000)
         self.fc2 = nn.Linear(1000, 100)
-        self.fc3 = nn.Linear(100, 10)
+        self.fc3 = nn.Linear(100, 1)
         self.sigmoid = nn.Sigmoid()
 
     def forward(self, x):
@@ -156,9 +156,9 @@ class TweetyNetCNN(nn.Module):
         x = torch.flatten(x, 1)
         x = self.fc1(x)
         # x = self.relu(x)
-        # x = self.fc2(x)
+        x = self.fc2(x)
         # x = self.relu(x)
-        # x = self.fc3(x)
+        x = self.fc3(x)
         return x
 
 
@@ -328,9 +328,9 @@ class TweetyNetCNN(nn.Module):
         x = self.pool2(x)
         x = torch.flatten(x, 1)
         x = self.fc1(x)
-        x = self.relu(x)
+        # x = self.relu(x)
         x = self.fc2(x)
-        x = self.relu(x)
+        # x = self.relu(x)
         x = self.fc3(x)
         x = self.sigmoid(x)
         return x
@@ -350,6 +350,8 @@ negative_samples_indices_list = []
 unique_syllables = torch.unique(actual_labels)
 
 indices_dict = {int(element): np.where(actual_labels == element)[0] for element in unique_syllables}
+num_negative_samples_each = 25
+
 total_batch_loss_list = []
 for batch_idx, (data, targets) in enumerate(train_loader):
     total_batch_loss = 0
@@ -379,10 +381,14 @@ for batch_idx, (data, targets) in enumerate(train_loader):
         sampled_labels = torch.multinomial(probs, num_samples, replacement=False)
         
         # Now let's randomly sample an index value from each sampled label
-        random_samples = {key: np.random.choice(values) for key, values in indices_dict.items() if key in sampled_labels}
+        
+        random_samples = {key: np.random.choice(values, num_negative_samples_each) for key, values in indices_dict.items() if key in sampled_labels}
         indices_of_negative_samples = np.array(list(random_samples.values()))
         negative_samples_indices_list.append(indices_of_negative_samples)
-        
+        a = np.stack(indices_of_negative_samples)
+        indices_of_negative_samples = np.stack(indices_of_negative_samples).reshape(a.shape[0]*a.shape[1],)
+
+    
         # Now let's extract the positive and negative samples' spectrogram 
         # slices
         
@@ -391,7 +397,7 @@ for batch_idx, (data, targets) in enumerate(train_loader):
         
         dat = torch.concatenate((positive_sample, negative_samples))
         
-        artificial_labels = torch.zeros((1,unique_categories.shape[0]))
+        artificial_labels = torch.zeros((1,unique_categories.shape[0]*num_negative_samples_each))
         artificial_labels[:,0] = 1
         
         # Get the number of rows in the tensors
