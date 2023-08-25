@@ -15,7 +15,7 @@ value for each syllable occurrence, NOT each syllable-phrase occurrence
 import numpy as np
 import matplotlib.pyplot as plt 
 import scipy.signal as signal
-import sounddevice as sd  
+# import sounddevice as sd  
 from scipy.io.wavfile import write
 import pandas as pd
 import seaborn as sns 
@@ -29,8 +29,8 @@ plt.ioff()
 
 sampling_freq = 44100
 
-num_syllables = 10
-num_short = 8
+num_syllables = 5
+num_short = 3
 num_long = 2
 
 mean_phi_0 = (np.random.uniform(0, 2*np.pi, num_syllables)).reshape(1, num_syllables)
@@ -63,11 +63,12 @@ mean_theta_2 = (np.random.uniform(0.01, np.pi/2, num_syllables)).reshape(1, num_
 mean_matrix = np.concatenate((mean_phi_0, mean_delta_phi, mean_B, mean_c, mean_f_0, mean_T, mean_Z_1, mean_Z_2, mean_theta_1, mean_theta_2), axis = 0)
 
 # Let's find a random order of syllable phrases to simulate 
-unique_syllables = np.arange(num_syllables)
+unique_syllables = np.arange(1, num_syllables+1)
+# unique_syllables = np.arange(num_syllables)
 syllable_phrase_order = unique_syllables.copy()
 phrase_repeats = 5
 
-num_songs = 10
+num_songs = 2
 
 radius_value = 0.01
 
@@ -161,7 +162,7 @@ for song_index in np.arange(num_songs):
             # We are going to ensure that each simulated parameter is within 1% of the mean value for the parameter. This will result in syllables with very little within-syllable variability
         
             # Draw acoustic parameters with respect to the mean vector corresponding to the syllable we are simulating
-            mu = mean_matrix[:,syl]
+            mu = mean_matrix[:,syl-1]
             
             # Define the desired radius (strictly within 0.05 from the centroid)
             radius = radius_value
@@ -232,7 +233,7 @@ for song_index in np.arange(num_songs):
             theta_2_vector.append(theta_2)
             
             # Let's create a table where we have the sampled acoustic parameters plotted against the mean acoustic parameters
-            tab = np.concatenate((mean_matrix[:,syl].reshape(10,1), acoustic_params.reshape(10,1)), axis = 1)
+            tab = np.concatenate((mean_matrix[:,syl-1].reshape(10,1), acoustic_params.reshape(10,1)), axis = 1)
             
             num_samples = int((T)*sampling_freq)
             t = np.linspace(0, ((T)), num_samples) 
@@ -240,8 +241,8 @@ for song_index in np.arange(num_songs):
             # Calculate the fundamental frequency across time
             f = f_0 + B*np.cos(phi_0 + delta_phi*t/T)
             
-            syllable_labels = np.repeat(syl, t.shape[0])
-            labels_per_sample = np.concatenate((labels_per_sample, syllable_labels))
+            # syllable_labels = np.repeat(syl, t.shape[0])
+            # labels_per_sample = np.concatenate((labels_per_sample, syllable_labels))
             
             
             while np.min(f)<700:
@@ -340,6 +341,12 @@ for song_index in np.arange(num_songs):
             W_t = 0.5 * (1 - np.cos(2 * np.pi * t / T))
                 
             waveform_filtered_envelope = normalized_signal * W_t
+            syllable_labels = np.repeat(syl, waveform_filtered_envelope.shape[0])
+            syllable_labels[-441:] = 0
+            # syllable_labels[np.argwhere(waveform_filtered_envelope == 0)] = 0
+            
+            labels_per_sample = np.concatenate((labels_per_sample, syllable_labels))
+            
             
             total_envelope = np.concatenate((total_envelope, waveform_filtered_envelope))
             
@@ -349,7 +356,6 @@ for song_index in np.arange(num_songs):
         phrase_duration_list.append(phrase_duration)
         num_repeats_list.append(num_repeats)
         
-
     frequencies, times, spectrogram = signal.spectrogram(total_envelope, fs=sampling_freq,
                                                         window='hamming', nperseg=256,
                                                         noverlap=128, nfft=512)
@@ -504,6 +510,9 @@ for song_index in np.arange(num_songs):
     # Show the legend
     plt.legend()
     plt.savefig(f'{folderpath_song}Phrase_Durations_of_Song.png')
+    
+    # Save the array of phrase durations
+    np.save(f'{folderpath_song}phrase_durations.npy', phrase_duration_arr)
 
 
 
@@ -702,50 +711,50 @@ for song_index in np.arange(num_songs):
 #     mean_colors_per_minispec[i,:] = mean_color
 
 
-acoustic_params_all_songs = np.empty((0, 11))
+# acoustic_params_all_songs = np.empty((0, 11))
 
     
-# Create a list to store column vectors
-acoustic_params_columns = []
+# # Create a list to store column vectors
+# acoustic_params_columns = []
 
-for song_index in range(num_songs):
-    folderpath_song = f'{songpath}Song_{song_index}/'
-    acoustic_params_dat = np.load(f'{folderpath_song}acoustic_params_for_song.npz')
-    # Create a list to store column vectors
-    acoustic_params_columns = []
+# for song_index in range(num_songs):
+#     folderpath_song = f'{songpath}Song_{song_index}/'
+#     acoustic_params_dat = np.load(f'{folderpath_song}acoustic_params_for_song.npz')
+#     # Create a list to store column vectors
+#     acoustic_params_columns = []
 
-    for key in acoustic_params_dat.keys():
-        array = acoustic_params_dat[key]
-        column_vector = array.reshape(-1, 1)
-        acoustic_params_columns.append(column_vector)
-    # Stack the column vectors horizontally to create the final array
-    acoustic_params_arr = np.hstack(acoustic_params_columns)    
-    acoustic_params_all_songs = np.concatenate((acoustic_params_all_songs, acoustic_params_arr))
+#     for key in acoustic_params_dat.keys():
+#         array = acoustic_params_dat[key]
+#         column_vector = array.reshape(-1, 1)
+#         acoustic_params_columns.append(column_vector)
+#     # Stack the column vectors horizontally to create the final array
+#     acoustic_params_arr = np.hstack(acoustic_params_columns)    
+#     acoustic_params_all_songs = np.concatenate((acoustic_params_all_songs, acoustic_params_arr))
     
-import umap
+# import umap
 
-reducer = umap.UMAP()
-X  = acoustic_params_all_songs[:,1::]
-y = acoustic_params_all_songs[:,0]
-embedding = reducer.fit_transform(X)
+# reducer = umap.UMAP()
+# X  = acoustic_params_all_songs[:,1::]
+# y = acoustic_params_all_songs[:,0]
+# embedding = reducer.fit_transform(X)
 
-plt.figure()
-# plt.scatter(embedding[:,0], embedding[:,1], c=y, cmap='viridis', s=50)
+# plt.figure()
+# # plt.scatter(embedding[:,0], embedding[:,1], c=y, cmap='viridis', s=50)
 
-categories = y 
+# categories = y 
 
-# Create separate scatter plots for each category
-for category in np.unique(categories):
-    mask = categories == category
-    plt.scatter(embedding[mask,0], embedding[mask,1], label=category, s=50)
+# # Create separate scatter plots for each category
+# for category in np.unique(categories):
+#     mask = categories == category
+#     plt.scatter(embedding[mask,0], embedding[mask,1], label=category, s=50)
 
-# Set plot labels and title
-plt.xlabel('UMAP 1')
-plt.ylabel('UMAP 2')
-plt.title(f'UMAP Embedding of the Parameter Regimes for Each Syllable across all songs')
+# # Set plot labels and title
+# plt.xlabel('UMAP 1')
+# plt.ylabel('UMAP 2')
+# plt.title(f'UMAP Embedding of the Parameter Regimes for Each Syllable across all songs')
 
-# Show the legend
-plt.legend()
+# # Show the legend
+# plt.legend()
 
 
 
